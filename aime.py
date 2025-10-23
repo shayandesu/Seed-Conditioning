@@ -146,7 +146,11 @@ def main(args):
         df = pd.concat([df1, df2])
         df.rename(columns={"question": "Problem", "answer": "Answer"}, inplace=True)
     elif args.dataset.lower().strip() == "math500":
-        
+        df = load_dataset("HuggingFaceH4/MATH-500")['test'].to_pandas()
+        df.rename(columns={"problem": "Problem", "answer": "Answer"}, inplace=True)
+        raise ValueError("MATH-500 dataset is not implemented yet.")
+    else:
+        raise ValueError("No dataset with such name.")
     
     results = []
     all_pass_1024 = []
