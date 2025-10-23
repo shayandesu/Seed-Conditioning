@@ -1,6 +1,7 @@
 from vllm import LLM, SamplingParams
 from argparse import ArgumentParser
 from datasets import load_dataset
+from transformers import AutoTokenizer
 import random, os, json
 import re
 import numpy as np
@@ -45,9 +46,10 @@ def gen_unique_n(n):
 def batch_generator(prompt, num_samples, set_seed=True):
     if set_seed:
         random_numbers = gen_unique_n(num_samples)
-        return [f"{number}\n\n{prompt}" for number in random_numbers]
+        processed_prompts = [f"{number}\n\n{prompt}" for number in random_numbers]
+        return [[{"role": "user", "content": prompt_text}] for prompt_text in processed_prompts]
     
-    return [prompt] * num_samples
+    return [[{"role": "user", "content": prompt}]] * num_samples
 
 
 def extract_answer_from_response(response):
@@ -113,6 +115,12 @@ def calculate_pass_at_k(num_correct, total_samples, k):
 def main(args):
     random.seed(args.seed)
     out_path = args.out_path
+    out_name = f"{args.model_name.split('/')[-1]}_{args.temperature}_{args.num_samples}_{args.seed}"
+    if args.disable_seed:
+        out_name += "_no_seed"
+        
+    assert not os.path.exists(os.path.join(out_path, out_name + ".json"))
+    assert not os.path.exists(os.path.join(out_path, out_name + "_summary.txt"))
     # if args.disable_seed:
     #     if out_path.endswith("/"):
     #         out_path = out_path[:-1] + "_no_seed/"
@@ -133,6 +141,7 @@ def main(args):
     if args.max_model_len is not None:
         llm_kwargs["max_model_len"] = args.max_model_len
     
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name)
     llm = LLM(**llm_kwargs)
     
     sampling = SamplingParams(temperature=args.temperature, max_tokens=args.max_tokens)
@@ -158,7 +167,14 @@ def main(args):
     for idx, row in df.iterrows():
         prompt = build_prompt(row["Problem"])
         answer = row["Answer"]
-        seeded_prompts = batch_generator(prompt, args.num_samples, not args.disable_seed)
+        batched = batch_generator(prompt, args.num_samples, not args.disable_seed)
+        seeded_prompts = tokenizer.apply_chat_template(
+            batched,
+            tokenize=False,
+            add_generation_prompt=True,
+            enable_thinking=True
+        )
+        assert isinstance(seeded_prompts, list) and isinstance(seeded_prompts[0], str) 
         all_responses = []
         
         for i in tqdm(range(0, args.num_samples, args.batch_size), desc=f"{idx+1}/{len(df)}"):
@@ -222,10 +238,6 @@ def main(args):
         },
         "results": results
     }
-    
-    out_name = f"{args.model_name.split('/')[-1]}_{args.temperature}_{args.num_samples}_{args.seed}"
-    if args.disable_seed:
-        out_name += "_noseed"
     
     json_name = os.path.join(out_path, out_name + ".json")
     with open(json_name, 'w') as f:
