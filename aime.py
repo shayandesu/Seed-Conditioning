@@ -144,7 +144,11 @@ def main(args):
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
     llm = LLM(**llm_kwargs)
     
-    sampling = SamplingParams(temperature=args.temperature, max_tokens=args.max_tokens)
+    sampling = SamplingParams(temperature=args.temperature,
+                              max_tokens=args.max_tokens,
+                              top_p=0.95,
+                              top_k=20
+                              )
     
     if args.dataset.lower().strip() == "aime2024":
         ds = load_dataset("Maxwell-Jia/AIME_2024")
