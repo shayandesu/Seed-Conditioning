@@ -27,6 +27,10 @@ def parse_args():
     parser.add_argument("--max_model_len", type=int, default=None)
     parser.add_argument("--top_p", type=float, default=1.0)
     parser.add_argument("--top_k", type=int, default=20)
+    parser.add_argument("--tensor_parallel_size", type=int, default=1, 
+                        help="Number of GPUs to use for tensor parallelism")
+    parser.add_argument("--pipeline_parallel_size", type=int, default=1,
+                        help="Number of GPUs to use for pipeline parallelism")
     args = parser.parse_args()
     return args
 
@@ -121,6 +125,10 @@ def main(args):
     if args.disable_seed:
         out_name += "_no_seed"
         
+    json_name = os.path.join(out_path, out_name + ".json")
+    summary_name = os.path.join(out_path, out_name + "_summary.txt")
+    
+        
     assert not os.path.exists(os.path.join(out_path, out_name + ".json"))
     assert not os.path.exists(os.path.join(out_path, out_name + "_summary.txt"))
     # if args.disable_seed:
@@ -137,6 +145,8 @@ def main(args):
         "quantization": args.quantization,
         "trust_remote_code": True,
         "gpu_memory_utilization": args.gpu_memory_utilization,
+        "tensor_parallel_size": args.tensor_parallel_size,
+        "pipeline_parallel_size": args.pipeline_parallel_size,
     }
     
     # Add max_model_len if specified
@@ -218,6 +228,8 @@ def main(args):
         })
         
         print(f"Problem {idx}: {num_correct}/{args.num_samples} correct, Pass@1024 = {pass_1024}")
+        with open(json_name, 'w') as f:
+            json.dump(output_data, f, indent=4)
     
     overall_pass_1024 = np.mean(all_pass_1024)
     total_correct = sum(item["num_correct"] for item in results)
@@ -245,12 +257,10 @@ def main(args):
         "results": results
     }
     
-    json_name = os.path.join(out_path, out_name + ".json")
     with open(json_name, 'w') as f:
         json.dump(output_data, f, indent=4)
     
     # Also save a summary file
-    summary_name = os.path.join(out_path, out_name + "_summary.txt")
     with open(summary_name, 'w') as f:
         f.write(f"Model: {args.model_name}\n")
         f.write(f"Temperature: {args.temperature}\n")
