@@ -23,8 +23,10 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--disable_seed", action="store_true")
     parser.add_argument("-d", "--dataset", type=str, default="AIME2024")
-    parser.add_argument("--max_tokens", type=int, default=2048)
+    parser.add_argument("--max_tokens", type=int, default=32000)
     parser.add_argument("--max_model_len", type=int, default=None)
+    parser.add_argument("--top_p", type=float, default=1.0)
+    parser.add_argument("--top_k", type=int, default=20)
     args = parser.parse_args()
     return args
 
@@ -115,7 +117,7 @@ def calculate_pass_at_k(num_correct, total_samples, k):
 def main(args):
     random.seed(args.seed)
     out_path = args.out_path
-    out_name = f"{args.model_name.split('/')[-1]}_{args.temperature}_{args.num_samples}_{args.seed}"
+    out_name = f"{args.model_name.split('/')[-1]}_{args.temperature}_{args.num_samples}_{args.seed}_{args.max_tokens}"
     if args.disable_seed:
         out_name += "_no_seed"
         
@@ -146,8 +148,8 @@ def main(args):
     
     sampling = SamplingParams(temperature=args.temperature,
                               max_tokens=args.max_tokens,
-                              top_p=0.95,
-                              top_k=20
+                              top_p=args.top_p,
+                              top_k=args.top_k
                               )
     
     if args.dataset.lower().strip() == "aime2024":
